@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="black">#FF000000</color>
+    <color name="white">#FFFFFFFF</color>
+    <color name="bg_dark">#FF0D0E15</color>
+    <color name="bg_card">#FF1A1C28</color>
+    <color name="primary">#FF7B2CBF</color>
+    <color name="primary_light">#FF9D4EDD</color>
+    <color name="primary_dark">#FF5A189A</color>
+    <color name="text_muted">#FF8C8E9B</color>
+    <color name="focused_highlight">#339D4EDD</color>
+</resources>
