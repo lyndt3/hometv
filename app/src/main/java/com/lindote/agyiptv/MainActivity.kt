@@ -22,7 +22,6 @@ import androidx.media3.common.Player
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.exoplayer.DefaultLoadControl
 import androidx.media3.exoplayer.DefaultRenderersFactory
-import androidx.media3.exoplayer.mediacodec.MediaCodecSelector
 import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
 import androidx.media3.datasource.DefaultHttpDataSource
 import androidx.media3.extractor.DefaultExtractorsFactory
@@ -64,6 +63,60 @@ class MainActivity : AppCompatActivity() {
     private var currentlySelectedStreams: List<LiveStream> = emptyList()
     private var currentPlayingIndex: Int = -1
     private var player: ExoPlayer? = null
+
+    private var allCategories: List<Category> = emptyList()
+
+    private val playbackCheckHandler = android.os.Handler(android.os.Looper.getMainLooper())
+    private var lastPlaybackPosition: Long = -1
+    private var lastPositionCheckTime: Long = 0
+    private var bufferingStartTime: Long = 0
+
+    private val checkPlaybackRunnable = object : Runnable {
+        override fun run() {
+            val p = player
+            if (p != null && p.playWhenReady) {
+                val currentState = p.playbackState
+                val currentPos = p.currentPosition
+                val now = System.currentTimeMillis()
+
+                if (currentState == Player.STATE_BUFFERING) {
+                    if (bufferingStartTime == 0L) {
+                        bufferingStartTime = now
+                    } else if (now - bufferingStartTime > 12000L) { // Buffering for more than 12s
+                        Log.w("PlayerStallDetector", "Buffering for too long (> 12s). Reloading channel...")
+                        bufferingStartTime = 0L
+                        runOnUiThread {
+                            Toast.makeText(this@MainActivity, "Sinal interrompido. A recarregar...", Toast.LENGTH_SHORT).show()
+                            reloadCurrentChannel()
+                        }
+                    }
+                } else if (currentState == Player.STATE_READY) {
+                    bufferingStartTime = 0L // Reset buffering timer
+                    
+                    if (currentPos == lastPlaybackPosition) {
+                        if (lastPositionCheckTime != 0L && now - lastPositionCheckTime > 8000L) { // Stuck/frozen for more than 8s
+                            Log.w("PlayerStallDetector", "Playback position stuck. Reloading channel...")
+                            lastPositionCheckTime = now
+                            runOnUiThread {
+                                Toast.makeText(this@MainActivity, "Sinal congelado. A recarregar...", Toast.LENGTH_SHORT).show()
+                                reloadCurrentChannel()
+                            }
+                        }
+                    } else {
+                        lastPlaybackPosition = currentPos
+                        lastPositionCheckTime = now
+                    }
+                } else {
+                    bufferingStartTime = 0L
+                    lastPositionCheckTime = 0L
+                }
+            } else {
+                bufferingStartTime = 0L
+                lastPositionCheckTime = 0L
+            }
+            playbackCheckHandler.postDelayed(this, 2000L)
+        }
+    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -144,6 +197,7 @@ class MainActivity : AppCompatActivity() {
                     allStreams = sortedStreams
                     tvStatus.text = "${categories.size} Categorias, ${sortedStreams.size} Canais"
 
+                    allCategories = categories
                     categoryAdapter.updateData(categories)
 
                     // Inicializa o XMLTV EPG em background com os tvgIds dos nossos canais
@@ -202,10 +256,12 @@ class MainActivity : AppCompatActivity() {
         return null
     }
 
-    private fun filterChannels(categoryId: String) {
+    private fun filterChannels(categoryId: String, resetScroll: Boolean = true) {
         currentlySelectedStreams = allStreams.filter { it.categoryId == categoryId }
         channelAdapter.updateData(currentlySelectedStreams)
-        rvChannels.scrollToPosition(0)
+        if (resetScroll) {
+            rvChannels.scrollToPosition(0)
+        }
     }
 
     private fun initializePlayer() {
@@ -232,25 +288,15 @@ class MainActivity : AppCompatActivity() {
             val mediaSourceFactory = DefaultMediaSourceFactory(this, extractorsFactory)
                 .setDataSourceFactory(httpDataSourceFactory)
 
-            val customMediaCodecSelector = MediaCodecSelector { mimeType, requiresSecureDecoder, requiresTunnelingDecoder ->
-                var queryMime = mimeType
-                if (mimeType.equals("audio/mpeg-L2", ignoreCase = true) || mimeType.equals("audio/mpeg-L1", ignoreCase = true)) {
-                    queryMime = "audio/mpeg"
-                }
-
-                val decoders = MediaCodecSelector.DEFAULT.getDecoderInfos(queryMime, requiresSecureDecoder, requiresTunnelingDecoder)
-                if (queryMime.equals("audio/mp4a-latm", ignoreCase = true) || queryMime.equals("audio/mp4a", ignoreCase = true)) {
-                    decoders.sortedWith(compareBy { decoder ->
-                        if (decoder.name.startsWith("c2.android.") || decoder.name.contains("google", ignoreCase = true)) 0 else 1
-                    })
-                } else {
-                    decoders
-                }
+            // TrackSelector que NÃO tenta usar codecs incompatíveis —
+            // evita o crash com audio/mpeg-L2 no c2.android.mp3.decoder
+            val trackSelector = androidx.media3.exoplayer.trackselection.DefaultTrackSelector(this).apply {
+                parameters = parameters.buildUpon()
+                    .setExceedRendererCapabilitiesIfNecessary(false)
+                    .build()
             }
 
-            val renderersFactory = DefaultRenderersFactory(this).apply {
-                setMediaCodecSelector(customMediaCodecSelector)
-            }
+            val renderersFactory = DefaultRenderersFactory(this)
 
             val audioAttributes = androidx.media3.common.AudioAttributes.Builder()
                 .setUsage(androidx.media3.common.C.USAGE_MEDIA)
@@ -260,6 +306,7 @@ class MainActivity : AppCompatActivity() {
             player = ExoPlayer.Builder(this, renderersFactory)
                 .setMediaSourceFactory(mediaSourceFactory)
                 .setLoadControl(loadControl)
+                .setTrackSelector(trackSelector)
                 .build().apply {
                     setAudioAttributes(audioAttributes, /* handleAudioFocus= */ true)
                     volume = 1.0f
@@ -296,7 +343,13 @@ class MainActivity : AppCompatActivity() {
 
                     override fun onPlayerError(error: PlaybackException) {
                         playerProgress.visibility = View.GONE
-                        Toast.makeText(this@MainActivity, "Erro ao reproduzir: ${error.message}", Toast.LENGTH_SHORT).show()
+                        Log.e("PlayerError", "Erro de reprodução: ${error.errorCodeName}", error)
+                        Toast.makeText(this@MainActivity, "Erro de ligação. A tentar restabelecer...", Toast.LENGTH_SHORT).show()
+                        playbackCheckHandler.postDelayed({
+                            if (!isFinishing && !isDestroyed) {
+                                reloadCurrentChannel()
+                            }
+                        }, 2000L)
                     }
                 })
             }
@@ -323,6 +376,11 @@ class MainActivity : AppCompatActivity() {
         } else if (safeIndex < 0) {
             safeIndex = currentlySelectedStreams.size - 1
         }
+
+        // Reset stall detection timers
+        bufferingStartTime = 0L
+        lastPlaybackPosition = -1
+        lastPositionCheckTime = System.currentTimeMillis()
 
         currentPlayingIndex = safeIndex
         val stream = currentlySelectedStreams[safeIndex]
@@ -491,9 +549,52 @@ class MainActivity : AppCompatActivity() {
         builder.create().show()
     }
 
+    private fun reloadCurrentChannel() {
+        if (currentPlayingIndex != -1) {
+            playChannel(currentPlayingIndex)
+        }
+    }
+
+    private fun syncMenuToCurrentChannel() {
+        if (currentPlayingIndex == -1 || currentlySelectedStreams.isEmpty()) return
+
+        val currentChannel = currentlySelectedStreams.getOrNull(currentPlayingIndex) ?: return
+        val categoryId = currentChannel.categoryId
+
+        // Visual selection highlight for current category
+        categoryAdapter.setSelectedCategory(categoryId)
+
+        // Sync the channel adapter to this category without resetting scroll instantly
+        filterChannels(categoryId, false)
+
+        // Scroll left pane to the selected category
+        val catIndex = allCategories.indexOfFirst { it.id == categoryId }
+        if (catIndex != -1) {
+            rvCategories.scrollToPosition(catIndex)
+        }
+
+        // Scroll right pane to the current channel and request focus
+        val targetIdx = currentlySelectedStreams.indexOfFirst { it.streamId == currentChannel.streamId }
+        val focusIndex = if (targetIdx != -1) targetIdx else currentPlayingIndex
+
+        rvChannels.post {
+            rvChannels.scrollToPosition(focusIndex)
+            rvChannels.postDelayed({
+                val holder = rvChannels.findViewHolderForAdapterPosition(focusIndex)
+                if (holder != null) {
+                    holder.itemView.requestFocus()
+                } else {
+                    val layoutManager = rvChannels.layoutManager
+                    val view = layoutManager?.findViewByPosition(focusIndex)
+                    view?.requestFocus() ?: rvChannels.requestFocus()
+                }
+            }, 100)
+        }
+    }
+
     private fun showMenu() {
         menuOverlay.visibility = View.VISIBLE
-        rvChannels.requestFocus()
+        syncMenuToCurrentChannel()
     }
 
     private fun hideMenu() {
@@ -643,11 +744,13 @@ class MainActivity : AppCompatActivity() {
     override fun onStart() {
         super.onStart()
         player?.play()
+        playbackCheckHandler.post(checkPlaybackRunnable)
     }
 
     override fun onStop() {
         super.onStop()
         player?.pause()
+        playbackCheckHandler.removeCallbacks(checkPlaybackRunnable)
     }
 
     @Deprecated("Deprecated in Java")

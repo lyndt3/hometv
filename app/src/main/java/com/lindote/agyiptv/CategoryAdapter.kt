@@ -11,6 +11,8 @@ class CategoryAdapter(
     private val onCategoryFocused: (Category) -> Unit
 ) : RecyclerView.Adapter<CategoryAdapter.ViewHolder>() {
 
+    private var selectedCategoryId: String? = null
+
     class ViewHolder(view: View) : RecyclerView.ViewHolder(view) {
         val tvName: TextView = view.findViewById(R.id.tv_category_name)
     }
@@ -25,10 +27,24 @@ class CategoryAdapter(
         val category = categories[position]
         holder.tvName.text = category.name
 
+        // Highlight selected category
+        val isSelected = category.id == selectedCategoryId
+        if (isSelected) {
+            holder.tvName.setTextColor(holder.itemView.context.getColor(R.color.primary_light))
+            holder.itemView.setBackgroundResource(R.drawable.focus_bg)
+        } else {
+            holder.tvName.setTextColor(holder.itemView.context.getColor(R.color.white))
+            holder.itemView.setBackgroundResource(R.drawable.focus_bg)
+        }
+
         // D-pad focus listener
         holder.itemView.setOnFocusChangeListener { _, hasFocus ->
             if (hasFocus) {
-                onCategoryFocused(category)
+                if (selectedCategoryId != category.id) {
+                    selectedCategoryId = category.id
+                    notifyDataSetChanged()
+                    onCategoryFocused(category)
+                }
             }
         }
     }
@@ -37,6 +53,11 @@ class CategoryAdapter(
 
     fun updateData(newCategories: List<Category>) {
         categories = newCategories
+        notifyDataSetChanged()
+    }
+
+    fun setSelectedCategory(categoryId: String) {
+        selectedCategoryId = categoryId
         notifyDataSetChanged()
     }
 }
