@@ -201,6 +201,17 @@ object XmltvManager {
         }
     }
 
+    fun getCurrentProgram(tvgId: String?): EpgProgram? {
+        if (tvgId.isNullOrEmpty()) return null
+        val listings = getProgramsForChannel(tvgId)
+        if (listings.isEmpty()) return null
+        
+        val sdf = java.text.SimpleDateFormat("yyyy-MM-dd HH:mm:ss", java.util.Locale.getDefault())
+        val nowStr = sdf.format(java.util.Date())
+        
+        return listings.find { nowStr >= it.start && nowStr < it.end }
+    }
+
     fun clearCache() {
         isLoaded = false
         epgMap.clear()

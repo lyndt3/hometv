@@ -16,6 +16,7 @@ class ChannelAdapter(
     class ViewHolder(view: View) : RecyclerView.ViewHolder(view) {
         val ivLogo: ImageView = view.findViewById(R.id.iv_channel_logo)
         val tvName: TextView = view.findViewById(R.id.tv_channel_name)
+        val tvEpg: TextView = view.findViewById(R.id.tv_channel_epg)
     }
 
     override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): ViewHolder {
@@ -34,6 +35,22 @@ class ChannelAdapter(
             .placeholder(R.drawable.app_banner)
             .error(R.drawable.app_banner)
             .into(holder.ivLogo)
+
+        // Bind currently playing program if available in XMLTV local cache
+        val currentEpg = XmltvManager.getCurrentProgram(channel.tvgId)
+        if (currentEpg != null) {
+            holder.tvEpg.visibility = View.VISIBLE
+            val timeStr = try {
+                val start = currentEpg.start.substringAfter(' ').substringBeforeLast(':')
+                val end = currentEpg.end.substringAfter(' ').substringBeforeLast(':')
+                "[$start - $end] "
+            } catch (e: Exception) {
+                ""
+            }
+            holder.tvEpg.text = "$timeStr${currentEpg.title}"
+        } else {
+            holder.tvEpg.visibility = View.GONE
+        }
 
         holder.itemView.setOnClickListener {
             onChannelClicked(channel)
