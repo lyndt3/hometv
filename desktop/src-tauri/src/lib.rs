@@ -18,7 +18,9 @@ fn start_proxy_server() {
                                     let encoded_url = &path[..url_end];
                                     if let Ok(decoded_str) = percent_encoding::percent_decode_str(encoded_url).decode_utf8() {
                                         let target_url = decoded_str.into_owned();
-                                        if let Ok(response) = ureq::get(&target_url).call() {
+                                        if let Ok(response) = ureq::get(&target_url)
+                                            .set("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36")
+                                            .call() {
                                                 let content_type = response.header("Content-Type").unwrap_or("video/mp2t");
                                                 let header_response = format!(
                                                     "HTTP/1.1 200 OK\r\n\
@@ -53,6 +55,7 @@ fn start_proxy_server() {
 #[tauri::command]
 fn fetch_m3u(url: String) -> Result<String, String> {
     let response = ureq::get(&url)
+        .set("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36")
         .timeout(std::time::Duration::from_secs(90))
         .call()
         .map_err(|e| e.to_string())?;

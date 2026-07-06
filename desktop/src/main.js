@@ -563,5 +563,32 @@ window.addEventListener('DOMContentLoaded', () => {
     videoLoader.classList.add('hidden');
   };
 
+  // Suporte a Ecrã Inteiro (Fullscreen)
+  const videoContainer = document.querySelector('.video-container');
+  function toggleFullscreen() {
+    if (!document.fullscreenElement) {
+      videoContainer.requestFullscreen().catch(err => {
+        videoPlayer.requestFullscreen().catch(e => console.error(e));
+      });
+    } else {
+      document.exitFullscreen().catch(e => console.error(e));
+    }
+  }
+
+  // Duplo clique no leitor para entrar/sair de ecrã inteiro
+  videoPlayer.addEventListener('dblclick', toggleFullscreen);
+  videoContainer.addEventListener('dblclick', (e) => {
+    if (e.target === videoContainer || e.target === videoPlayer) {
+      toggleFullscreen();
+    }
+  });
+
+  // Atalhos de teclado (F para fullscreen)
+  window.addEventListener('keydown', (e) => {
+    if (e.key.toLowerCase() === 'f') {
+      toggleFullscreen();
+    }
+  });
+
   loadData();
 });
