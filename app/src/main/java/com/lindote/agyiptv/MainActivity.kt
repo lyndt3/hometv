@@ -16,17 +16,10 @@ import android.widget.Toast
 import com.bumptech.glide.Glide
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
-import androidx.media3.common.MediaItem
-import androidx.media3.common.PlaybackException
-import androidx.media3.common.Player
-import androidx.media3.exoplayer.ExoPlayer
-import androidx.media3.exoplayer.DefaultLoadControl
-import androidx.media3.exoplayer.DefaultRenderersFactory
-import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
-import androidx.media3.datasource.DefaultHttpDataSource
-import androidx.media3.extractor.DefaultExtractorsFactory
-import androidx.media3.extractor.ts.DefaultTsPayloadReaderFactory
-import androidx.media3.ui.PlayerView
+import org.videolan.libvlc.LibVLC
+import org.videolan.libvlc.MediaPlayer
+import org.videolan.libvlc.Media
+import org.videolan.libvlc.util.VLCVideoLayout
 import androidx.recyclerview.widget.GridLayoutManager
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
@@ -38,10 +31,11 @@ class MainActivity : AppCompatActivity() {
 
     private lateinit var tvStatus: TextView
     private lateinit var progressBar: ProgressBar
+    private lateinit var splashOverlay: View
     private lateinit var rvCategories: RecyclerView
     private lateinit var rvChannels: RecyclerView
     private lateinit var menuOverlay: View
-    private lateinit var playerView: PlayerView
+    private lateinit var playerView: VLCVideoLayout
     private lateinit var playerProgress: ProgressBar
 
     private lateinit var categoryAdapter: CategoryAdapter
@@ -62,7 +56,9 @@ class MainActivity : AppCompatActivity() {
     private var allStreams: List<LiveStream> = emptyList()
     private var currentlySelectedStreams: List<LiveStream> = emptyList()
     private var currentPlayingIndex: Int = -1
-    private var player: ExoPlayer? = null
+    
+    private var libVlc: LibVLC? = null
+    private var mPlayer: MediaPlayer? = null
 
     private var allCategories: List<Category> = emptyList()
 
@@ -73,45 +69,26 @@ class MainActivity : AppCompatActivity() {
 
     private val checkPlaybackRunnable = object : Runnable {
         override fun run() {
-            val p = player
-            if (p != null && p.playWhenReady) {
-                val currentState = p.playbackState
-                val currentPos = p.currentPosition
+            val p = mPlayer
+            if (p != null && p.isPlaying) {
+                val currentPos = p.time
                 val now = System.currentTimeMillis()
 
-                if (currentState == Player.STATE_BUFFERING) {
-                    if (bufferingStartTime == 0L) {
-                        bufferingStartTime = now
-                    } else if (now - bufferingStartTime > 12000L) { // Buffering for more than 12s
-                        Log.w("PlayerStallDetector", "Buffering for too long (> 12s). Reloading channel...")
-                        bufferingStartTime = 0L
+                if (currentPos == lastPlaybackPosition) {
+                    if (lastPositionCheckTime != 0L && now - lastPositionCheckTime > 8000L) { // Stuck/frozen for more than 8s
+                        Log.w("PlayerStallDetector", "Playback position stuck. Reloading channel...")
+                        lastPositionCheckTime = now
                         runOnUiThread {
-                            Toast.makeText(this@MainActivity, "Sinal interrompido. A recarregar...", Toast.LENGTH_SHORT).show()
+                            Toast.makeText(this@MainActivity, "Sinal congelado. A recarregar...", Toast.LENGTH_SHORT).show()
                             reloadCurrentChannel()
                         }
                     }
-                } else if (currentState == Player.STATE_READY) {
-                    bufferingStartTime = 0L // Reset buffering timer
-                    
-                    if (currentPos == lastPlaybackPosition) {
-                        if (lastPositionCheckTime != 0L && now - lastPositionCheckTime > 8000L) { // Stuck/frozen for more than 8s
-                            Log.w("PlayerStallDetector", "Playback position stuck. Reloading channel...")
-                            lastPositionCheckTime = now
-                            runOnUiThread {
-                                Toast.makeText(this@MainActivity, "Sinal congelado. A recarregar...", Toast.LENGTH_SHORT).show()
-                                reloadCurrentChannel()
-                            }
-                        }
-                    } else {
-                        lastPlaybackPosition = currentPos
-                        lastPositionCheckTime = now
-                    }
                 } else {
-                    bufferingStartTime = 0L
-                    lastPositionCheckTime = 0L
+                    lastPlaybackPosition = currentPos
+                    lastPositionCheckTime = now
                 }
             } else {
-                bufferingStartTime = 0L
+                lastPlaybackPosition = -1
                 lastPositionCheckTime = 0L
             }
             playbackCheckHandler.postDelayed(this, 2000L)
@@ -125,6 +102,7 @@ class MainActivity : AppCompatActivity() {
 
         tvStatus = findViewById(R.id.tv_status)
         progressBar = findViewById(R.id.progress_bar)
+        splashOverlay = findViewById(R.id.splash_overlay)
         rvCategories = findViewById(R.id.rv_categories)
         rvChannels = findViewById(R.id.rv_channels)
         menuOverlay = findViewById(R.id.menu_overlay)
@@ -175,6 +153,7 @@ class MainActivity : AppCompatActivity() {
                 runOnUiThread {
                     if (isFinishing || isDestroyed) return@runOnUiThread
                     progressBar.visibility = View.GONE
+                    splashOverlay.visibility = View.GONE
                     tvStatus.text = "Erro: $error"
                 }
                 return@fetchAndParse
@@ -194,6 +173,11 @@ class MainActivity : AppCompatActivity() {
                 runOnUiThread {
                     if (isFinishing || isDestroyed) return@runOnUiThread
                     progressBar.visibility = View.GONE
+                    splashOverlay.animate()
+                        .alpha(0f)
+                        .setDuration(800)
+                        .withEndAction { splashOverlay.visibility = View.GONE }
+                        .start()
                     allStreams = sortedStreams
                     tvStatus.text = "${categories.size} Categorias, ${sortedStreams.size} Canais"
 
@@ -224,6 +208,7 @@ class MainActivity : AppCompatActivity() {
                 runOnUiThread {
                     if (isFinishing || isDestroyed) return@runOnUiThread
                     progressBar.visibility = View.GONE
+                    splashOverlay.visibility = View.GONE
                     tvStatus.text = "Sem dados disponiveis"
                 }
             }
@@ -265,95 +250,61 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun initializePlayer() {
-        if (player == null) {
-            val loadControl = DefaultLoadControl.Builder()
-                .setBufferDurationsMs(
-                    2500, // minBufferMs
-                    5000, // maxBufferMs
-                    1000, // bufferForPlaybackMs
-                    1500  // bufferForPlaybackAfterRebufferMs
-                )
-                .build()
-
-            val extractorsFactory = DefaultExtractorsFactory().apply {
-                setTsExtractorFlags(
-                    DefaultTsPayloadReaderFactory.FLAG_ALLOW_NON_IDR_KEYFRAMES or
-                    DefaultTsPayloadReaderFactory.FLAG_DETECT_ACCESS_UNITS
-                )
-            }
-
-            val httpDataSourceFactory = DefaultHttpDataSource.Factory()
-                .setUserAgent("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/110.0.0.0 Safari/537.36")
-
-            val mediaSourceFactory = DefaultMediaSourceFactory(this, extractorsFactory)
-                .setDataSourceFactory(httpDataSourceFactory)
-
-            // TrackSelector que NÃO tenta usar codecs incompatíveis —
-            // evita o crash com audio/mpeg-L2 no c2.android.mp3.decoder
-            val trackSelector = androidx.media3.exoplayer.trackselection.DefaultTrackSelector(this).apply {
-                parameters = parameters.buildUpon()
-                    .setExceedRendererCapabilitiesIfNecessary(false)
-                    .build()
-            }
-
-            val renderersFactory = DefaultRenderersFactory(this)
-
-            val audioAttributes = androidx.media3.common.AudioAttributes.Builder()
-                .setUsage(androidx.media3.common.C.USAGE_MEDIA)
-                .setContentType(androidx.media3.common.C.AUDIO_CONTENT_TYPE_MOVIE)
-                .build()
-
-            player = ExoPlayer.Builder(this, renderersFactory)
-                .setMediaSourceFactory(mediaSourceFactory)
-                .setLoadControl(loadControl)
-                .setTrackSelector(trackSelector)
-                .build().apply {
-                    setAudioAttributes(audioAttributes, /* handleAudioFocus= */ true)
-                    volume = 1.0f
-                    playWhenReady = true
-                addListener(object : Player.Listener {
-                    override fun onPlaybackStateChanged(playbackState: Int) {
-                        when (playbackState) {
-                            Player.STATE_BUFFERING -> {
-                                playerProgress.visibility = View.VISIBLE
-                            }
-                            Player.STATE_READY -> {
-                                playerProgress.visibility = View.GONE
-                            }
-                            Player.STATE_ENDED -> {
-                                playerProgress.visibility = View.GONE
-                            }
-                            Player.STATE_IDLE -> {
-                                playerProgress.visibility = View.GONE
-                            }
-                        }
-                    }
-
-                    override fun onTracksChanged(tracks: androidx.media3.common.Tracks) {
-                        Log.i("PlayerTracks", "Canais de áudio/vídeo alterados:")
-                        for (group in tracks.groups) {
-                            if (group.type == androidx.media3.common.C.TRACK_TYPE_AUDIO) {
-                                for (i in 0 until group.length) {
-                                    val format = group.getTrackFormat(i)
-                                    Log.i("PlayerTracks", "Áudio Track $i: mime=${format.sampleMimeType}, lang=${format.language}, label=${format.label}, supported=${group.isTrackSupported(i)}")
+        if (libVlc == null) {
+            val options = arrayListOf<String>(
+                "--network-caching=1500", // Buffer of 1.5s
+                "--clock-jitter=0",
+                "--clock-synchro=0",
+                "--drop-late-frames",    // Drop late video frames to keep in sync
+                "--skip-frames"          // Skip frames if CPU is slow
+            )
+            libVlc = LibVLC(this, options)
+        }
+        if (mPlayer == null) {
+            mPlayer = MediaPlayer(libVlc).apply {
+                attachViews(playerView, null, true, false)
+                
+                setEventListener { event ->
+                    when (event.type) {
+                        MediaPlayer.Event.Buffering -> {
+                            val bufferingProgress = event.buffering
+                            val currentlyBuffering = bufferingProgress < 100f
+                            playerProgress.visibility = if (currentlyBuffering) View.VISIBLE else View.GONE
+                            
+                            if (currentlyBuffering) {
+                                if (bufferingStartTime == 0L) {
+                                    bufferingStartTime = System.currentTimeMillis()
+                                } else if (System.currentTimeMillis() - bufferingStartTime > 12000L) {
+                                    Log.w("PlayerStallDetector", "LibVLC buffering too long. Reloading...")
+                                    bufferingStartTime = 0L
+                                    runOnUiThread {
+                                        Toast.makeText(this@MainActivity, "Sinal interrompido. A recarregar...", Toast.LENGTH_SHORT).show()
+                                        reloadCurrentChannel()
+                                    }
                                 }
+                            } else {
+                                bufferingStartTime = 0L
                             }
                         }
+                        MediaPlayer.Event.Playing -> {
+                            playerProgress.visibility = View.GONE
+                            bufferingStartTime = 0L
+                            lastPlaybackPosition = -1
+                            lastPositionCheckTime = System.currentTimeMillis()
+                        }
+                        MediaPlayer.Event.EncounteredError -> {
+                            playerProgress.visibility = View.GONE
+                            Log.e("PlayerError", "LibVLC encountered playback error")
+                            Toast.makeText(this@MainActivity, "Erro de ligação. A tentar restabelecer...", Toast.LENGTH_SHORT).show()
+                            playbackCheckHandler.postDelayed({
+                                if (!isFinishing && !isDestroyed) {
+                                    reloadCurrentChannel()
+                                }
+                            }, 2000L)
+                        }
                     }
-
-                    override fun onPlayerError(error: PlaybackException) {
-                        playerProgress.visibility = View.GONE
-                        Log.e("PlayerError", "Erro de reprodução: ${error.errorCodeName}", error)
-                        Toast.makeText(this@MainActivity, "Erro de ligação. A tentar restabelecer...", Toast.LENGTH_SHORT).show()
-                        playbackCheckHandler.postDelayed({
-                            if (!isFinishing && !isDestroyed) {
-                                reloadCurrentChannel()
-                            }
-                        }, 2000L)
-                    }
-                })
+                }
             }
-            playerView.player = player
         }
     }
 
@@ -388,10 +339,17 @@ class MainActivity : AppCompatActivity() {
 
         initializePlayer()
 
-        player?.let {
-            it.setMediaItem(MediaItem.fromUri(url))
-            it.prepare()
-            it.play()
+        mPlayer?.let { player ->
+            try {
+                val media = Media(libVlc, android.net.Uri.parse(url)).apply {
+                    addOption(":network-caching=1500")
+                }
+                player.media = media
+                media.release()
+                player.play()
+            } catch (e: Exception) {
+                Log.e("Player", "Error loading media in LibVLC: ${e.message}", e)
+            }
         }
 
         // Exibe o painel de informação EPG do canal
@@ -743,13 +701,13 @@ class MainActivity : AppCompatActivity() {
 
     override fun onStart() {
         super.onStart()
-        player?.play()
+        mPlayer?.play()
         playbackCheckHandler.post(checkPlaybackRunnable)
     }
 
     override fun onStop() {
         super.onStop()
-        player?.pause()
+        mPlayer?.pause()
         playbackCheckHandler.removeCallbacks(checkPlaybackRunnable)
     }
 
@@ -766,7 +724,13 @@ class MainActivity : AppCompatActivity() {
     override fun onDestroy() {
         super.onDestroy()
         epgHandler.removeCallbacks(hideEpgRunnable)
-        player?.release()
-        player = null
+        mPlayer?.let {
+            it.stop()
+            it.detachViews()
+            it.release()
+        }
+        mPlayer = null
+        libVlc?.release()
+        libVlc = null
     }
 }

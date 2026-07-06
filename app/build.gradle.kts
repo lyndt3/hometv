@@ -53,4 +53,7 @@ dependencies {
     
     // Glide for logo images
     implementation("com.github.bumptech.glide:glide:4.16.0")
+    
+    // LibVLC for robust audio/video playback (including MP2/AC3)
+    implementation("org.videolan.android:libvlc-all:3.6.5")
 }
