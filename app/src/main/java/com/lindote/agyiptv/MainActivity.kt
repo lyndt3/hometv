@@ -293,10 +293,17 @@ class MainActivity : AppCompatActivity() {
             val options = arrayListOf<String>(
                 "--network-caching=1500", // Buffer of 1.5s
                 "--clock-jitter=0",
-                "--clock-synchro=0",
-                "--drop-late-frames",    // Drop late video frames to keep in sync
-                "--skip-frames"          // Skip frames if CPU is slow
+                "--clock-synchro=0"
             )
+            if (isRunningOnEmulator()) {
+                // Disable hardware decoding on emulator to avoid frozen frames
+                options.add("--codec=all")
+                options.add("--no-mediacodec-dr")
+                options.add("--no-omxil-dr")
+            } else {
+                options.add("--drop-late-frames")
+                options.add("--skip-frames")
+            }
             libVlc = LibVLC(this, options)
         }
         if (mPlayer == null) {
@@ -382,6 +389,12 @@ class MainActivity : AppCompatActivity() {
             try {
                 val media = Media(libVlc, android.net.Uri.parse(url)).apply {
                     addOption(":network-caching=1500")
+                    if (isRunningOnEmulator()) {
+                        addOption(":codec=all")
+                        addOption(":hwdec=disabled")
+                        addOption(":no-mediacodec-dr")
+                        addOption(":no-omxil-dr")
+                    }
                 }
                 player.media = media
                 media.release()
