@@ -585,7 +585,11 @@ class MainActivity : AppCompatActivity() {
 
     private fun showMenu() {
         menuOverlay.visibility = View.VISIBLE
-        syncMenuToCurrentChannel()
+        if (currentPlayingIndex != -1 && currentlySelectedStreams.isNotEmpty()) {
+            syncMenuToCurrentChannel()
+        } else {
+            rvCategories.requestFocus()
+        }
     }
 
     private fun hideMenu() {
@@ -595,15 +599,21 @@ class MainActivity : AppCompatActivity() {
 
     override fun onKeyDown(keyCode: Int, event: KeyEvent?): Boolean {
         if (menuOverlay.visibility == View.VISIBLE) {
-            // Menu is open. Back or Menu closes it.
-            if (keyCode == KeyEvent.KEYCODE_BACK || keyCode == KeyEvent.KEYCODE_MENU) {
+            // Menu is open. Back, Menu, Escape or M closes it.
+            if (keyCode == KeyEvent.KEYCODE_BACK || 
+                keyCode == KeyEvent.KEYCODE_MENU || 
+                keyCode == KeyEvent.KEYCODE_ESCAPE || 
+                keyCode == KeyEvent.KEYCODE_M) {
                 hideMenu()
                 return true
             }
         } else {
             // Menu is closed.
             when (keyCode) {
-                KeyEvent.KEYCODE_BACK, KeyEvent.KEYCODE_MENU -> {
+                KeyEvent.KEYCODE_BACK, 
+                KeyEvent.KEYCODE_MENU, 
+                KeyEvent.KEYCODE_ESCAPE, 
+                KeyEvent.KEYCODE_M -> {
                     showMenu()
                     return true
                 }
