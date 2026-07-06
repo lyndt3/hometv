@@ -1,0 +1,105 @@
+<!doctype html>
+<html lang="pt">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>homeTV Desktop</title>
+    <!-- Google Fonts: Inter -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="styles.css" />
+    <!-- Hls.js & Mpegts.js for stream decoding -->
+    <script src="https://cdn.jsdelivr.net/npm/hls.js@latest"></script>
+    <script src="https://cdn.jsdelivr.net/npm/mpegts.js@latest/dist/mpegts.min.js"></script>
+    <script type="module" src="/main.js" defer></script>
+  </head>
+  <body>
+    <!-- Splash Screen Overlay -->
+    <div id="splash-screen" class="splash-overlay">
+      <img src="assets/splash.png" alt="Splash Screen" class="splash-img" />
+      <div class="splash-loader-container">
+        <div class="glowing-spinner"></div>
+        <p id="splash-status">A carregar aplicação...</p>
+      </div>
+    </div>
+
+    <!-- Main Application Container -->
+    <div class="app-container">
+      
+      <!-- Sidebar (Categories) -->
+      <aside class="sidebar">
+        <div class="sidebar-header">
+          <img src="assets/logo.png" alt="homeTV Logo" class="app-logo" />
+          <h2>homeTV</h2>
+        </div>
+        <div id="categories-list" class="categories-list">
+          <!-- Categories dynamic list -->
+        </div>
+        <div class="sidebar-footer">
+          <button id="btn-login" class="btn btn-secondary">Login</button>
+          <button id="btn-refresh" class="btn btn-primary">Atualizar</button>
+        </div>
+      </aside>
+
+      <!-- Channels List Panel -->
+      <section class="channels-panel">
+        <div class="panel-header">
+          <input type="text" id="search-input" placeholder="Pesquisar canal..." autocomplete="off" />
+        </div>
+        <div id="channels-list" class="channels-list">
+          <!-- Channels dynamic list -->
+        </div>
+      </section>
+
+      <!-- Video Player Viewport -->
+      <main class="player-viewport">
+        <div class="video-container">
+          <video id="video-player" controls autoplay></video>
+          
+          <!-- Loading Buffer Overlay -->
+          <div id="video-loader" class="video-loader hidden">
+            <div class="spinner"></div>
+            <p>A carregar transmissão...</p>
+          </div>
+
+          <!-- Channel Info Overlay (EPG) -->
+          <div id="epg-overlay" class="epg-overlay hidden">
+            <div class="epg-info">
+              <h3 id="epg-channel-name">Nome do Canal</h3>
+              <p id="epg-now" class="epg-now">A Dar: --</p>
+              <p id="epg-next" class="epg-next">A Seguir: --</p>
+            </div>
+          </div>
+        </div>
+      </main>
+
+    </div>
+
+    <!-- Login Modal -->
+    <div id="login-modal" class="modal-overlay hidden">
+      <div class="modal-content glass">
+        <h3>Credenciais IPTV</h3>
+        <p>Introduz as tuas credenciais do servidor Xtream Codes.</p>
+        <form id="login-form">
+          <div class="form-group">
+            <label for="input-server">Servidor (Host)</label>
+            <input type="text" id="input-server" required value="http://x96.us:8880" />
+          </div>
+          <div class="form-group">
+            <label for="input-username">Utilizador</label>
+            <input type="text" id="input-username" required value="FerreiraLindote" />
+          </div>
+          <div class="form-group">
+            <label for="input-password">Palavra-passe</label>
+            <input type="password" id="input-password" required value="123digalaoutravez1" />
+          </div>
+          <div class="modal-actions">
+            <button type="button" id="btn-close-login" class="btn btn-secondary">Cancelar</button>
+            <button type="submit" class="btn btn-primary">Entrar</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </body>
+</html>
