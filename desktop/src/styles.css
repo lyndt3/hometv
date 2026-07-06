@@ -535,3 +535,48 @@ body {
 .hidden {
   display: none !important;
 }
+
+/* Fullscreen Behavior & Right-Click Floating Menu Overlay */
+.app-container.fullscreen-active .sidebar,
+.app-container.fullscreen-active .channels-panel {
+  display: none !important;
+}
+
+.app-container.fullscreen-active.show-menu .sidebar {
+  display: flex !important;
+  position: absolute;
+  left: 0;
+  top: 0;
+  height: 100%;
+  z-index: 100;
+  box-shadow: 10px 0 30px rgba(0, 0, 0, 0.7);
+  background: rgba(11, 12, 16, 0.92);
+  backdrop-filter: blur(15px);
+  -webkit-backdrop-filter: blur(15px);
+  animation: slideInMenu 0.25s ease-out forwards;
+}
+
+.app-container.fullscreen-active.show-menu .channels-panel {
+  display: flex !important;
+  position: absolute;
+  left: 280px;
+  top: 0;
+  height: 100%;
+  z-index: 99;
+  box-shadow: 10px 0 30px rgba(0, 0, 0, 0.7);
+  background: rgba(15, 17, 24, 0.92);
+  backdrop-filter: blur(15px);
+  -webkit-backdrop-filter: blur(15px);
+  animation: slideInMenu 0.25s ease-out forwards;
+}
+
+@keyframes slideInMenu {
+  from {
+    transform: translateX(-50px);
+    opacity: 0;
+  }
+  to {
+    transform: translateX(0);
+    opacity: 1;
+  }
+}

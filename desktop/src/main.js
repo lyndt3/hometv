@@ -567,6 +567,7 @@ window.addEventListener('DOMContentLoaded', () => {
   const { getCurrentWindow } = window.__TAURI__.window;
   const appWindow = getCurrentWindow();
   const videoContainer = document.querySelector('.video-container');
+  const appContainer = document.querySelector('.app-container');
   
   async function toggleFullscreen() {
     try {
@@ -584,6 +585,20 @@ window.addEventListener('DOMContentLoaded', () => {
     }
   }
 
+  // Monitorizar alterações de tamanho para atualizar as classes de fullscreen da app
+  window.addEventListener('resize', async () => {
+    try {
+      const isFull = await appWindow.isFullscreen();
+      if (isFull) {
+        appContainer.classList.add('fullscreen-active');
+      } else {
+        appContainer.classList.remove('fullscreen-active', 'show-menu');
+      }
+    } catch (e) {
+      console.error(e);
+    }
+  });
+
   // Duplo clique no leitor para entrar/sair de ecrã inteiro
   videoPlayer.addEventListener('dblclick', toggleFullscreen);
   videoContainer.addEventListener('dblclick', (e) => {
@@ -592,10 +607,52 @@ window.addEventListener('DOMContentLoaded', () => {
     }
   });
 
-  // Atalhos de teclado (F para fullscreen)
+  // Fechar o menu flutuante se clicar no leitor
+  videoPlayer.addEventListener('click', () => {
+    if (appContainer.classList.contains('show-menu')) {
+      appContainer.classList.remove('show-menu');
+    }
+  });
+
+  // Botão direito do rato para abrir/fechar o menu em fullscreen
+  window.addEventListener('contextmenu', (e) => {
+    e.preventDefault();
+    if (appContainer.classList.contains('fullscreen-active')) {
+      appContainer.classList.toggle('show-menu');
+    }
+  });
+
+  // Atalhos de teclado (F para fullscreen, Setas para mudar canal)
   window.addEventListener('keydown', (e) => {
+    // Tecla F: Alterna Ecrã Inteiro
     if (e.key.toLowerCase() === 'f') {
       toggleFullscreen();
+      return;
+    }
+
+    // Setas Cima/Baixo: Mudar de canal (apenas se não estiver a escrever na pesquisa)
+    if (document.activeElement === searchInput) return;
+
+    if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+      e.preventDefault();
+      if (currentlySelectedStreams.length > 0) {
+        let index = currentlySelectedStreams.findIndex(s => s.id === currentStream?.id);
+        
+        if (e.key === 'ArrowDown') {
+          // Próximo canal
+          index = index === -1 ? 0 : (index + 1) % currentlySelectedStreams.length;
+        } else {
+          // Canal anterior
+          index = index === -1 ? currentlySelectedStreams.length - 1 : (index - 1 + currentlySelectedStreams.length) % currentlySelectedStreams.length;
+        }
+        
+        const nextStream = currentlySelectedStreams[index];
+        if (nextStream) {
+          playStream(nextStream);
+          // Fechar menu flutuante ao mudar de canal se estiver aberto
+          appContainer.classList.remove('show-menu');
+        }
+      }
     }
   });
 
