@@ -387,6 +387,9 @@ class MainActivity : AppCompatActivity() {
 
         mPlayer?.let { player ->
             try {
+                player.stop()
+                player.media = null
+
                 val media = Media(libVlc, android.net.Uri.parse(url)).apply {
                     addOption(":network-caching=1500")
                     if (isRunningOnEmulator()) {
