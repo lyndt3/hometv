@@ -563,15 +563,24 @@ window.addEventListener('DOMContentLoaded', () => {
     videoLoader.classList.add('hidden');
   };
 
-  // Suporte a Ecrã Inteiro (Fullscreen)
+  // Suporte a Ecrã Inteiro (Fullscreen) nativo do Tauri v2 com fallback
+  const { getCurrentWindow } = window.__TAURI__.window;
+  const appWindow = getCurrentWindow();
   const videoContainer = document.querySelector('.video-container');
-  function toggleFullscreen() {
-    if (!document.fullscreenElement) {
-      videoContainer.requestFullscreen().catch(err => {
-        videoPlayer.requestFullscreen().catch(e => console.error(e));
-      });
-    } else {
-      document.exitFullscreen().catch(e => console.error(e));
+  
+  async function toggleFullscreen() {
+    try {
+      const isFullscreen = await appWindow.isFullscreen();
+      await appWindow.setFullscreen(!isFullscreen);
+    } catch (e) {
+      console.error("Erro ao alterar ecrã inteiro nativo:", e);
+      if (!document.fullscreenElement) {
+        videoContainer.requestFullscreen().catch(err => {
+          videoPlayer.requestFullscreen().catch(e => console.error(e));
+        });
+      } else {
+        document.exitFullscreen().catch(e => console.error(e));
+      }
     }
   }
 
