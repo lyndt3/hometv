@@ -66,6 +66,7 @@ class MainActivity : AppCompatActivity() {
     private var lastPlaybackPosition: Long = -1
     private var lastPositionCheckTime: Long = 0
     private var bufferingStartTime: Long = 0
+    private var lastBackPressTime: Long = 0
 
     private val checkPlaybackRunnable = object : Runnable {
         override fun run() {
@@ -118,6 +119,11 @@ class MainActivity : AppCompatActivity() {
         btnSettings = findViewById(R.id.btn_settings)
         btnSettings.setOnClickListener {
             showCredentialsDialog()
+        }
+
+        val btnExit = findViewById<Button>(R.id.btn_exit)
+        btnExit.setOnClickListener {
+            finish()
         }
 
         // Setup layouts
@@ -756,7 +762,6 @@ class MainActivity : AppCompatActivity() {
 
     @Deprecated("Deprecated in Java")
     override fun onBackPressed() {
-        // Previne fechar a aplicação acidentalmente com a tecla BACK no comando.
         if (menuOverlay.visibility == View.GONE) {
             showMenu()
         } else {
