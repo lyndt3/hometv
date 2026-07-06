@@ -121,6 +121,12 @@ class MainActivity : AppCompatActivity() {
             showCredentialsDialog()
         }
 
+        val btnRefresh = findViewById<Button>(R.id.btn_refresh)
+        btnRefresh.setOnClickListener {
+            hideMenu()
+            loadData(forceRefresh = true)
+        }
+
         val btnExit = findViewById<Button>(R.id.btn_exit)
         btnExit.setOnClickListener {
             finish()
@@ -150,11 +156,13 @@ class MainActivity : AppCompatActivity() {
         loadData()
     }
 
-    private fun loadData() {
+    private fun loadData(forceRefresh: Boolean = false) {
         progressBar.visibility = View.VISIBLE
+        splashOverlay.visibility = View.VISIBLE
+        splashOverlay.alpha = 1f
         tvStatus.text = "A carregar lista M3U online..."
 
-        M3uParser.fetchAndParse(this) { categories, streams, error ->
+        M3uParser.fetchAndParse(this, forceRefresh) { categories, streams, error ->
             if (error != null) {
                 runOnUiThread {
                     if (isFinishing || isDestroyed) return@runOnUiThread

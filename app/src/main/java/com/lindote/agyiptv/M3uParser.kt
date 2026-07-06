@@ -25,14 +25,14 @@ object M3uParser {
         .writeTimeout(60, TimeUnit.SECONDS)
         .build()
 
-    fun fetchAndParse(context: Context, callback: (List<Category>?, List<LiveStream>?, String?) -> Unit) {
+    fun fetchAndParse(context: Context, forceRefresh: Boolean = false, callback: (List<Category>?, List<LiveStream>?, String?) -> Unit) {
         val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
         val lastDownload = prefs.getLong(KEY_LAST_DOWNLOAD, 0L)
         val cacheFile = File(context.filesDir, CACHE_FILE_NAME)
         val now = System.currentTimeMillis()
 
-        // Se a cache local existe e tem menos de 7 dias, carrega de imediato de forma otimizada
-        if (cacheFile.exists() && (now - lastDownload) < CACHE_DURATION_MS) {
+        // Se não for forçado, a cache local existe e tem menos de 7 dias, carrega de imediato
+        if (!forceRefresh && cacheFile.exists() && (now - lastDownload) < CACHE_DURATION_MS) {
             Log.i(TAG, "Cache local válida. A abrir stream de leitura...")
             Thread {
                 try {
@@ -46,7 +46,7 @@ object M3uParser {
             return
         }
 
-        // Caso a cache não exista ou tenha expirado, tenta obter a nova lista online
+        // Caso forceRefresh seja true, ou a cache não exista/exceda o tempo, descarrega online
         fetchFromNetwork(context, cacheFile, prefs, now, callback)
     }
 
