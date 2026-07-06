@@ -176,7 +176,10 @@ class MainActivity : AppCompatActivity() {
                     splashOverlay.animate()
                         .alpha(0f)
                         .setDuration(800)
-                        .withEndAction { splashOverlay.visibility = View.GONE }
+                        .withEndAction { 
+                            splashOverlay.visibility = View.GONE
+                            playerView.requestFocus()
+                        }
                         .start()
                     allStreams = sortedStreams
                     tvStatus.text = "${categories.size} Categorias, ${sortedStreams.size} Canais"
@@ -215,14 +218,44 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
+    private fun isRunningOnEmulator(): Boolean {
+        return (android.os.Build.FINGERPRINT.startsWith("generic")
+                || android.os.Build.FINGERPRINT.startsWith("unknown")
+                || android.os.Build.MODEL.contains("google_sdk")
+                || android.os.Build.MODEL.contains("Emulator")
+                || android.os.Build.MODEL.contains("Android SDK built for x86")
+                || android.os.Build.MANUFACTURER.contains("Genymotion")
+                || android.os.Build.PRODUCT.contains("sdk_google")
+                || android.os.Build.PRODUCT.contains("google_sdk")
+                || android.os.Build.HARDWARE.contains("goldfish")
+                || android.os.Build.HARDWARE.contains("ranchu"))
+    }
+
     private fun findDefaultChannelIndex(streams: List<LiveStream>): Pair<String, Int>? {
-        // Tenta encontrar correspondência para "sport tv 1 hd" ou "sport tv 1 fhd"
-        var foundStream = streams.find { stream ->
-            val clean = stream.name.lowercase().replace(" ", "")
-            clean.contains("sporttv1hd") || clean.contains("sporttv1fhd")
+        var foundStream: LiveStream? = null
+
+        if (isRunningOnEmulator()) {
+            // Procurar Sport TV 5 SD por defeito no emulador para testes
+            foundStream = streams.find { stream ->
+                val clean = stream.name.lowercase().replace(" ", "")
+                clean.contains("sporttv5sd")
+            }
+            if (foundStream == null) {
+                foundStream = streams.find { stream ->
+                    val clean = stream.name.lowercase()
+                    clean.contains("sport tv 5") && clean.contains("sd")
+                }
+            }
         }
 
-        // Fallback: contém "sport tv 1"
+        // Fluxo padrão para aparelhos reais (Sport TV 1)
+        if (foundStream == null) {
+            foundStream = streams.find { stream ->
+                val clean = stream.name.lowercase().replace(" ", "")
+                clean.contains("sporttv1hd") || clean.contains("sporttv1fhd")
+            }
+        }
+
         if (foundStream == null) {
             foundStream = streams.find { stream ->
                 val clean = stream.name.lowercase()
