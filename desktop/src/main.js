@@ -552,5 +552,16 @@ searchInput.oninput = (e) => {
 
 // Initial Startup
 window.addEventListener('DOMContentLoaded', () => {
+  // Garantir que a mensagem "A carregar transmissão..." desaparece assim que o vídeo começa a dar
+  videoPlayer.onplaying = () => {
+    videoLoader.classList.add('hidden');
+  };
+  videoPlayer.onwaiting = () => {
+    videoLoader.classList.remove('hidden');
+  };
+  videoPlayer.onerror = () => {
+    videoLoader.classList.add('hidden');
+  };
+
   loadData();
 });
