@@ -1,8 +1,8 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
-  "productName": "desktop",
+  "productName": "homeTV",
   "version": "0.1.0",
-  "identifier": "com.lindote.desktop",
+  "identifier": "com.lindote.hometv",
   "build": {
     "frontendDist": "../src"
   },
@@ -10,9 +10,9 @@
     "withGlobalTauri": true,
     "windows": [
       {
-        "title": "desktop",
-        "width": 800,
-        "height": 600
+        "title": "homeTV",
+        "width": 1280,
+        "height": 720
       }
     ],
     "security": {
