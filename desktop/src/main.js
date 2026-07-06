@@ -365,8 +365,9 @@ function playStream(stream) {
   document.querySelectorAll('.channel-card').forEach(el => el.classList.remove('active'));
   renderChannels(searchInput.value);
 
-  const streamUrl = stream.url;
-  console.log(`A reproduzir stream: ${stream.name} -> ${streamUrl}`);
+  const rawUrl = stream.url;
+  const streamUrl = `http://127.0.0.1:18087/proxy?url=${encodeURIComponent(rawUrl)}`;
+  console.log(`A reproduzir stream via proxy: ${stream.name} -> ${streamUrl}`);
   
   // Show video loading indicator
   videoLoader.classList.remove('hidden');
@@ -490,8 +491,12 @@ async function loadData(forceRefresh = false) {
     
     splashStatus.innerText = "A inicializar interface...";
     if (categories.length > 0) {
-      // Prioritize Portugal category, or pick first
-      const defaultCat = categories.find(c => c.name.toLowerCase().includes('portugal')) || categories[0];
+      // Prioritize Portugal Live TV category specifically, then fallback to general Portugal, then first category
+      const defaultCat = categories.find(c => {
+        const name = c.name.toLowerCase();
+        return name.includes('portugal') && (name.includes('tv') || name.includes('live'));
+      }) || categories.find(c => c.name.toLowerCase().includes('portugal')) || categories[0];
+      
       selectCategory(defaultCat.id);
     }
     
